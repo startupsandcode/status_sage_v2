@@ -1,0 +1,196 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/statussage/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// Auth models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String?   // For email/password auth
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  
+  // StatusSage specific fields
+  subscriptionTier   SubscriptionTier @default(FREE)
+  stripeCustomerId   String?          @unique
+  subscriptionId     String?          @unique
+  subscriptionStatus String?
+  subscriptionEndsAt DateTime?
+  
+  // Monitoring data
+  monitors       Monitor[]
+  alertSettings  AlertSetting[]
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// StatusSage specific models
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum MonitorType {
+  HTTP
+  API
+  PING
+}
+
+enum MonitorStatus {
+  UP
+  DOWN
+  DEGRADED
+  UNKNOWN
+}
+
+enum HttpMethod {
+  GET
+  POST
+  PUT
+  DELETE
+  HEAD
+  OPTIONS
+  PATCH
+}
+
+model Monitor {
+  id                String         @id @default(cuid())
+  userId            String
+  name              String
+  url               String
+  type              MonitorType    @default(HTTP)
+  method            HttpMethod     @default(GET)
+  headers           Json?          // Custom headers as JSON
+  body              String?        // Request body for POST/PUT
+  
+  // Monitoring configuration
+  checkInterval     Int            @default(300) // seconds (5 minutes)
+  timeout           Int            @default(30)  // seconds
+  expectedStatus    Int?           @default(200) // Expected HTTP status
+  followRedirects   Boolean        @default(true)
+  
+  // Current status
+  status            MonitorStatus  @default(UNKNOWN)
+  lastCheck         DateTime?
+  lastUptime        DateTime?
+  lastDowntime      DateTime?
+  currentResponseTime Int?         // milliseconds
+  
+  // Calculated metrics
+  uptimePercentage24h  Float?      @default(100.0)
+  uptimePercentage7d   Float?      @default(100.0)
+  uptimePercentage30d  Float?      @default(100.0)
+  avgResponseTime24h   Float?
+  avgResponseTime7d    Float?
+  avgResponseTime30d   Float?
+  
+  isEnabled         Boolean        @default(true)
+  
+  // Relationships
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checks            MonitorCheck[]
+  incidents         Incident[]
+  
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([lastCheck])
+  @@unique([userId, name])
+}
+
+model MonitorCheck {
+  id           String        @id @default(cuid())
+  monitorId    String
+  status       MonitorStatus
+  responseTime Int?          // milliseconds
+  statusCode   Int?
+  errorMessage String?
+  checkedAt    DateTime      @default(now())
+  
+  monitor      Monitor       @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  
+  @@index([monitorId, checkedAt])
+  @@index([checkedAt])
+}
+
+enum IncidentStatus {
+  ONGOING
+  RESOLVED
+  INVESTIGATING
+}
+
+model Incident {
+  id          String          @id @default(cuid())
+  monitorId   String
+  status      IncidentStatus  @default(ONGOING)
+  startedAt   DateTime        @default(now())
+  resolvedAt  DateTime?
+  duration    Int?            // seconds
+  description String?
+  
+  monitor     Monitor         @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  
+  @@index([monitorId])
+  @@index([startedAt])
+}
+
+model AlertSetting {
+  id                    String   @id @default(cuid())
+  userId                String
+  emailOnDown           Boolean  @default(true)
+  emailOnUp             Boolean  @default(true)
+  emailOnDegraded       Boolean  @default(false)
+  notificationCooldown  Int      @default(300) // seconds between notifications
+  
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId])
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00BCD4;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <path d="M128 20 L40 60 L40 120 Q40 180 128 236 Q216 180 216 120 L216 60 Z" fill="url(#shieldGrad)"/>
+  <path d="M128 28 L48 64 L48 120 Q48 174 128 226 Q208 174 208 120 L208 64 Z" fill="#1976D2"/>
+  <polyline points="70,150 95,125 120,140 145,110 170,95 190,75" fill="none" stroke="#4CAF50" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70" cy="150" r="5" fill="#4CAF50"/>
+  <circle cx="95" cy="125" r="5" fill="#4CAF50"/>
+  <circle cx="120" cy="140" r="5" fill="#4CAF50"/>
+  <circle cx="145" cy="110" r="5" fill="#4CAF50"/>
+  <circle cx="170" cy="95" r="5" fill="#4CAF50"/>
+  <circle cx="190" cy="75" r="5" fill="#4CAF50"/>
+</svg>
