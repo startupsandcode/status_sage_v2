@@ -5,11 +5,10 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-09-30.clover'
-})
-
 export async function POST(req: NextRequest) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2025-09-30.clover'
+  })
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id || !session?.user?.email) {
