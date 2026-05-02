@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/monitoring/check",
+      "schedule": "* * * * *"
+    }
+  ],
+  "functions": {
+    "app/api/monitoring/check/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
