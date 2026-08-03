@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
+import { assertSafeMonitorUrl, UnsafeMonitorUrlError } from '@/lib/safe-fetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,6 +103,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const validatedData = createMonitorSchema.parse(body)
+    await assertSafeMonitorUrl(validatedData.url)
 
     // Adjust check interval based on subscription
     let checkInterval = validatedData.checkInterval
@@ -125,6 +127,9 @@ export async function POST(req: NextRequest) {
         { error: 'Validation failed', details: error.errors },
         { status: 400 }
       )
+    }
+    if (error instanceof UnsafeMonitorUrlError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('Error creating monitor:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

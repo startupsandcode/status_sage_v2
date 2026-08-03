@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,11 +74,7 @@ export function MonitorDetailClient({ monitorId }: MonitorDetailClientProps) {
   const [monitor, setMonitor] = useState<Monitor | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchMonitor()
-  }, [monitorId])
-
-  const fetchMonitor = async () => {
+  const fetchMonitor = useCallback(async () => {
     try {
       const response = await fetch(`/api/monitors/${monitorId}`)
       if (response.ok) {
@@ -101,7 +97,11 @@ export function MonitorDetailClient({ monitorId }: MonitorDetailClientProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [monitorId])
+
+  useEffect(() => {
+    fetchMonitor()
+  }, [fetchMonitor])
 
   const triggerCheck = async () => {
     try {
@@ -208,7 +208,7 @@ export function MonitorDetailClient({ monitorId }: MonitorDetailClientProps) {
               Monitor not found
             </h3>
             <p className="text-gray-500 mb-6">
-              The monitor you're looking for doesn't exist or you don't have access to it.
+              The monitor you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
             </p>
             <Link href="/monitors">
               <Button>

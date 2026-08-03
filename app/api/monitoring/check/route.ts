@@ -1,6 +1,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { safeMonitorFetch } from '@/lib/safe-fetch'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -42,7 +45,9 @@ async function checkMonitor(monitor: any): Promise<MonitorCheckResult> {
       }
     }
 
-    const response = await fetch(monitor.url, options)
+    const response = await safeMonitorFetch(monitor.url, options, {
+      followRedirects: monitor.followRedirects,
+    })
     const responseTime = Date.now() - startTime
 
     // Check if status matches expected
@@ -273,13 +278,18 @@ export async function GET(req: NextRequest) {
 // Main check endpoint - can be called manually or by cron
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
     const { monitorId } = body
 
     if (monitorId) {
-      // Check specific monitor
+      // Users may only trigger their own enabled monitors.
       const monitor = await prisma.monitor.findUnique({
-        where: { id: monitorId, isEnabled: true }
+        where: { id: monitorId, userId: session.user.id, isEnabled: true }
       })
 
       if (!monitor) {
@@ -296,9 +306,9 @@ export async function POST(req: NextRequest) {
         statusChanged,
         message: 'Monitor checked successfully' 
       })
-    } else {
-      return runAllDueMonitors()
     }
+
+    return NextResponse.json({ error: 'Monitor ID required' }, { status: 400 })
   } catch (error) {
     console.error('Monitor check error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
