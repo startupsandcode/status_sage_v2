@@ -109,7 +109,7 @@ model Monitor {
   body              String?        // Request body for POST/PUT
   
   // Monitoring configuration
-  checkInterval     Int            @default(300) // seconds (5 minutes)
+  checkInterval     Int            @default(900) // seconds (15 minutes)
   timeout           Int            @default(30)  // seconds
   expectedStatus    Int?           @default(200) // Expected HTTP status
   followRedirects   Boolean        @default(true)

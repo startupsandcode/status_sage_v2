@@ -15,7 +15,7 @@ const createMonitorSchema = z.object({
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH']).default('GET'),
   headers: z.record(z.string()).optional(),
   body: z.string().optional(),
-  checkInterval: z.number().min(60).max(3600).default(300), // 1 minute to 1 hour
+  checkInterval: z.number().min(60).max(3600).default(900), // 1 minute to 1 hour
   timeout: z.number().min(5).max(120).default(30), // 5 seconds to 2 minutes
   expectedStatus: z.number().optional().default(200),
   followRedirects: z.boolean().default(true)

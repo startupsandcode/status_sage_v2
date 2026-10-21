@@ -31,7 +31,7 @@ export function NewMonitorClient({ monitorId }: NewMonitorClientProps) {
     method: 'GET' as const,
     headers: '{}',
     body: '',
-    checkInterval: 300,
+    checkInterval: 900,
     timeout: 30,
     expectedStatus: 200,
     followRedirects: true
@@ -279,6 +279,7 @@ export function NewMonitorClient({ monitorId }: NewMonitorClientProps) {
                           <SelectItem value="60">1 minute (Premium)</SelectItem>
                           <SelectItem value="300">5 minutes</SelectItem>
                           <SelectItem value="600">10 minutes</SelectItem>
+                          <SelectItem value="900">15 minutes</SelectItem>
                           <SelectItem value="1800">30 minutes</SelectItem>
                           <SelectItem value="3600">1 hour</SelectItem>
                         </SelectContent>
