@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
@@ -16,9 +16,14 @@ import { ArrowLeft, Globe, Settings, Code, Clock } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import Link from 'next/link'
 
-export function NewMonitorClient() {
+interface NewMonitorClientProps {
+  monitorId?: string
+}
+
+export function NewMonitorClient({ monitorId }: NewMonitorClientProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [loadingMonitor, setLoadingMonitor] = useState(Boolean(monitorId))
   const [formData, setFormData] = useState({
     name: '',
     url: '',
@@ -31,6 +36,51 @@ export function NewMonitorClient() {
     expectedStatus: 200,
     followRedirects: true
   })
+
+  useEffect(() => {
+    if (!monitorId) return
+
+    let cancelled = false
+
+    async function loadMonitor() {
+      try {
+        const response = await fetch(`/api/monitors/${monitorId}`)
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}))
+          throw new Error(error.error || 'Failed to load monitor')
+        }
+
+        const monitor = await response.json()
+        if (cancelled) return
+
+        setFormData({
+          name: monitor.name,
+          url: monitor.url,
+          type: monitor.type,
+          method: monitor.method,
+          headers: JSON.stringify(monitor.headers ?? {}, null, 2),
+          body: monitor.body ?? '',
+          checkInterval: monitor.checkInterval,
+          timeout: monitor.timeout,
+          expectedStatus: monitor.expectedStatus,
+          followRedirects: monitor.followRedirects,
+        })
+      } catch (error) {
+        if (cancelled) return
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to load monitor',
+          variant: 'destructive'
+        })
+        router.push('/monitors')
+      } finally {
+        if (!cancelled) setLoadingMonitor(false)
+      }
+    }
+
+    loadMonitor()
+    return () => { cancelled = true }
+  }, [monitorId, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,8 +103,8 @@ export function NewMonitorClient() {
         }
       }
 
-      const response = await fetch('/api/monitors', {
-        method: 'POST',
+      const response = await fetch(monitorId ? `/api/monitors/${monitorId}` : '/api/monitors', {
+        method: monitorId ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -68,9 +118,9 @@ export function NewMonitorClient() {
       if (response.ok) {
         toast({
           title: 'Success',
-          description: 'Monitor created successfully!'
+          description: monitorId ? 'Monitor updated successfully!' : 'Monitor created successfully!'
         })
-        router.push('/monitors')
+        router.push(monitorId ? `/monitors/${monitorId}` : '/monitors')
       } else {
         const error = await response.json()
         toast({
@@ -80,7 +130,7 @@ export function NewMonitorClient() {
         })
       }
     } catch (error) {
-      console.error('Error creating monitor:', error)
+      console.error(monitorId ? 'Error updating monitor:' : 'Error creating monitor:', error)
       toast({
         title: 'Error',
         description: 'Failed to create monitor',
@@ -111,9 +161,9 @@ export function NewMonitorClient() {
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back to Monitors
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Add New Monitor</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{monitorId ? 'Edit Monitor' : 'Add New Monitor'}</h1>
           <p className="mt-2 text-gray-600">
-            Set up monitoring for your website or API endpoint
+            {monitorId ? 'Update this monitor configuration' : 'Set up monitoring for your website or API endpoint'}
           </p>
         </div>
 
@@ -323,8 +373,8 @@ export function NewMonitorClient() {
                 Cancel
               </Button>
             </Link>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Monitor'}
+            <Button type="submit" disabled={loading || loadingMonitor}>
+              {loading ? (monitorId ? 'Saving...' : 'Creating...') : (monitorId ? 'Save Changes' : 'Create Monitor')}
             </Button>
           </div>
         </form>
