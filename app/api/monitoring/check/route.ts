@@ -1,8 +1,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { safeMonitorFetch } from '@/lib/safe-fetch'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 interface MonitorCheckResult {
   status: 'UP' | 'DOWN' | 'DEGRADED'
@@ -41,7 +45,9 @@ async function checkMonitor(monitor: any): Promise<MonitorCheckResult> {
       }
     }
 
-    const response = await fetch(monitor.url, options)
+    const response = await safeMonitorFetch(monitor.url, options, {
+      followRedirects: monitor.followRedirects,
+    })
     const responseTime = Date.now() - startTime
 
     // Check if status matches expected
@@ -214,16 +220,76 @@ async function calculateUptimeMetrics(monitorId: string) {
   }
 }
 
+async function runAllDueMonitors() {
+  const now = new Date()
+  const monitors = await prisma.monitor.findMany({
+    where: {
+      isEnabled: true,
+      OR: [
+        { lastCheck: null },
+        {
+          lastCheck: {
+            lt: new Date(now.getTime() - 60 * 1000)
+          }
+        }
+      ]
+    }
+  })
+
+  const results = []
+  let checkedCount = 0
+
+  for (const monitor of monitors) {
+    if (monitor.lastCheck) {
+      const timeSinceLastCheck = now.getTime() - monitor.lastCheck.getTime()
+      const intervalMs = monitor.checkInterval * 1000
+      if (timeSinceLastCheck < intervalMs) {
+        continue
+      }
+    }
+
+    try {
+      const result = await checkMonitor(monitor)
+      const statusChanged = await updateMonitorStatus(monitor.id, result)
+      await calculateUptimeMetrics(monitor.id)
+      results.push({ monitorId: monitor.id, name: monitor.name, result, statusChanged })
+      checkedCount++
+    } catch (error: any) {
+      console.error(`Failed to check monitor ${monitor.id}:`, error)
+      results.push({ monitorId: monitor.id, name: monitor.name, error: error?.message || 'Unknown error' })
+    }
+  }
+
+  return NextResponse.json({
+    message: `Checked ${checkedCount} monitors`,
+    totalFound: monitors.length,
+    results
+  })
+}
+
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get('authorization')
+  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  return runAllDueMonitors()
+}
+
 // Main check endpoint - can be called manually or by cron
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
     const { monitorId } = body
 
     if (monitorId) {
-      // Check specific monitor
+      // Users may only trigger their own enabled monitors.
       const monitor = await prisma.monitor.findUnique({
-        where: { id: monitorId, isEnabled: true }
+        where: { id: monitorId, userId: session.user.id, isEnabled: true }
       })
 
       if (!monitor) {
@@ -240,66 +306,9 @@ export async function POST(req: NextRequest) {
         statusChanged,
         message: 'Monitor checked successfully' 
       })
-    } else {
-      // Check all monitors that are due for checking
-      const now = new Date()
-      const monitors = await prisma.monitor.findMany({
-        where: {
-          isEnabled: true,
-          OR: [
-            { lastCheck: null },
-            {
-              lastCheck: {
-                lt: new Date(now.getTime() - 60 * 1000) // At least 1 minute ago
-              }
-            }
-          ]
-        }
-      })
-
-      const results = []
-      let checkedCount = 0
-
-      for (const monitor of monitors) {
-        // Check if this monitor is due for checking based on its interval
-        if (monitor.lastCheck) {
-          const timeSinceLastCheck = now.getTime() - monitor.lastCheck.getTime()
-          const intervalMs = monitor.checkInterval * 1000
-          
-          if (timeSinceLastCheck < intervalMs) {
-            continue // Not due yet
-          }
-        }
-
-        try {
-          const result = await checkMonitor(monitor)
-          const statusChanged = await updateMonitorStatus(monitor.id, result)
-          await calculateUptimeMetrics(monitor.id)
-          
-          results.push({
-            monitorId: monitor.id,
-            name: monitor.name,
-            result,
-            statusChanged
-          })
-          
-          checkedCount++
-        } catch (error: any) {
-          console.error(`Failed to check monitor ${monitor.id}:`, error)
-          results.push({
-            monitorId: monitor.id,
-            name: monitor.name,
-            error: error?.message || 'Unknown error'
-          })
-        }
-      }
-
-      return NextResponse.json({ 
-        message: `Checked ${checkedCount} monitors`,
-        totalFound: monitors.length,
-        results 
-      })
     }
+
+    return NextResponse.json({ error: 'Monitor ID required' }, { status: 400 })
   } catch (error) {
     console.error('Monitor check error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

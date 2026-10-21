@@ -349,7 +349,7 @@ export function MonitorsClient() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Monitor</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to delete "{monitor.name}"? This action cannot be undone and will remove all associated data.
+                                Are you sure you want to delete &quot;{monitor.name}&quot;? This action cannot be undone and will remove all associated data.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

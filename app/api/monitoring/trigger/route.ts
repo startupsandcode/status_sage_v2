@@ -21,10 +21,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Trigger the monitoring check
-    const checkResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/monitoring/check`, {
+    const checkUrl = new URL('/api/monitoring/check', req.nextUrl.origin)
+    const checkResponse = await fetch(checkUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        cookie: req.headers.get('cookie') || ''
       },
       body: JSON.stringify({ monitorId })
     })
